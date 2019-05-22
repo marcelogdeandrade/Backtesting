@@ -95,5 +95,52 @@ class MarketMaker(Strategy):
       return orders
     return []
 
+class MarceloStrategy(Strategy):
+  def __init__(self):
+    self.signal = 0
+    self.max_count = 7
+    self.count_buy = 0
+    self.count_sell = 0
+    self.prev = None
+
+  def _update_counts(self, price):
+    if price > self.prev:
+      self.count_sell += 1
+      self.count_buy = 0
+    else:
+      self.count_buy += 1
+      self.count_sell = 0
+
+  def _create_buy_order(self, event):
+    orders = []
+    self.count_buy = 0
+    if self.signal == -1:
+      orders.append(Order(event.instrument, 1, 0))
+      orders.append(Order(event.instrument, 1, 0))
+    self.signal = 1
+    return orders
+
+  def _create_sell_order(self, event):
+    orders = []
+    self.count_sell = 0
+    if self.signal == 1:
+      orders.append(Order(event.instrument, -1, 0))
+      orders.append(Order(event.instrument, -1, 0))
+    self.signal = -1
+    return orders
+
+  def push(self, event):
+    orders = []
+    price = event.price[3]
+    if self.prev:
+      self._update_counts(price)
+    if self.count_buy == self.max_count:
+      orders = self._create_buy_order(event)
+    if self.count_sell == self.max_count:
+      orders = self._create_sell_order(event)
+    self.prev = price
+    return orders
+
 print(evaluateHist(RSI(), {'IBOV':'^BVSP.csv'}))
+print(evaluateHist(MarceloStrategy(), {'IBOV':'^BVSP.csv'}))
 print(evaluateIntr(MarketMaker(), {'USDBRL':'USDBRL.csv', 'PETR3':'PETR3.csv'}))
