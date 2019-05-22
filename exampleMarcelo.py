@@ -1,4 +1,4 @@
-from backtesting import evaluateHist
+from backtesting import evaluateHist, evaluateIntr
 from strategy import Strategy
 from order import Order
 from event import Event
@@ -59,4 +59,41 @@ class RSI(Strategy):
         self.signal = 1
     return orders
 
+class MarketMaker(Strategy):
+  def __init__(self):
+    self.cur_petr3 = None
+    self.cur_usd = None
+    self.buy_order_id = None
+    self.sell_order_id = None
+    self.spread = 0.1
+
+  def _calc_pbr(self):
+    ti = 1.01815
+    tf = -0.32019
+    f = 2
+    pbr = ((self.cur_petr3 * f) / self.cur_usd) * ti + tf
+    return pbr
+
+  def push(self, event):
+    orders = []
+    if event.instrument == "PETR3":
+      self.cur_petr3 = event.price[3]
+    else:
+      self.cur_usd = event.price[3]
+    if self.cur_petr3 and self.cur_usd:
+      pbr = self._calc_pbr()
+      if self.buy_order_id:
+        self.cancel(self.id, self.buy_order_id)
+      if self.sell_order_id:
+        self.cancel(self.id, self.sell_order_id)
+      order_buy = Order(event.instrument, 1, pbr - self.spread)
+      self.buy_order_id = order_buy.id
+      order_sell = Order(event.instrument, -1, pbr + self.spread)
+      self.sell_order_id = order_sell.id
+      orders.append(order_buy)
+      orders.append(order_sell)
+      return orders
+    return []
+
 print(evaluateHist(RSI(), {'IBOV':'^BVSP.csv'}))
+print(evaluateIntr(MarketMaker(), {'USDBRL':'USDBRL.csv', 'PETR3':'PETR3.csv'}))
